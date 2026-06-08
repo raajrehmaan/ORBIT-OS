@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 33% 98%;
+  --foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --primary: 174 72% 32%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 222 47% 18%;
+  --secondary-foreground: 210 40% 98%;
+  --success: 151 64% 38%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 35 92% 12%;
+  --error: 0 72% 51%;
+  --error-foreground: 0 0% 100%;
+  --surface: 0 0% 100%;
+  --surface-foreground: 222 47% 11%;
+  --destructive: 0 72% 51%;
+  --ring: 174 72% 32%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222 28% 10%;
+  --foreground: 210 40% 98%;
+  --border: 217 19% 24%;
+  --muted: 217 25% 17%;
+  --muted-foreground: 215 20% 72%;
+  --primary: 174 67% 45%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 210 40% 92%;
+  --secondary-foreground: 222 47% 11%;
+  --success: 151 60% 45%;
+  --success-foreground: 222 47% 11%;
+  --warning: 42 92% 56%;
+  --warning-foreground: 35 92% 12%;
+  --error: 0 72% 58%;
+  --error-foreground: 0 0% 100%;
+  --surface: 222 24% 13%;
+  --surface-foreground: 210 40% 98%;
+  --destructive: 0 72% 58%;
+  --ring: 174 67% 45%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
