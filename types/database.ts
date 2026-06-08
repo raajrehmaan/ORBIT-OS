@@ -190,12 +190,6 @@ export type Database = {
         Update: { id?: string; organisation_id?: string; admin_pin_hash?: string | null; recovery_code_hashes?: Json; recovery_email?: string | null; two_step_enabled?: boolean; owner_password_verification_enabled?: boolean; protect_client_archive?: boolean; protect_staff_changes?: boolean; protect_appointments?: boolean; protect_services?: boolean; protect_financials?: boolean; protect_settings?: boolean; pin_updated_at?: string | null; pin_reset_requested_at?: string | null; pin_reset_token_hash?: string | null; pin_reset_token_expires_at?: string | null; created_at?: string; updated_at?: string };
         Relationships: [];
       };
-      admin_pin_attempts: {
-        Row: { id: string; organisation_id: string; user_id: string | null; action: string; success: boolean; created_at: string };
-        Insert: { id?: string; organisation_id: string; user_id?: string | null; action: string; success?: boolean; created_at?: string };
-        Update: { id?: string; organisation_id?: string; user_id?: string | null; action?: string; success?: boolean; created_at?: string };
-        Relationships: [];
-      };
       treatment_plans: {
         Row: { id: string; organisation_id: string; client_id: string; service_id: string | null; plan_name: string; total_sessions: number; completed_sessions: number; cancelled_sessions: number; no_show_sessions: number; plan_status: string; notes: string | null; created_at: string; updated_at: string; archived_at: string | null };
         Insert: { id?: string; organisation_id: string; client_id: string; service_id?: string | null; plan_name: string; total_sessions?: number; completed_sessions?: number; cancelled_sessions?: number; no_show_sessions?: number; plan_status?: string; notes?: string | null; created_at?: string; updated_at?: string; archived_at?: string | null };

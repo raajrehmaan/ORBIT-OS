@@ -10,7 +10,7 @@ import { cn, humanize, normalizeCurrencyString, safeArray, safeLower } from "@/l
 import type { AppointmentStatus, PaymentStatus } from "@/types/database";
 
 type Option = { id: string; name: string };
-type ServiceOption = Option & { duration_minutes: number; color?: string; category?: string };
+type ServiceOption = Option & { duration_minutes: number; price?: number; color?: string; category?: string };
 
 const intervals = [15, 30, 60] as const;
 const durations = [15, 30, 45, 60, 90, 120] as const;
@@ -35,26 +35,55 @@ export function AppointmentScheduler({
   const [interval, setInterval] = useState<(typeof intervals)[number]>(30);
   const [duration, setDuration] = useState(60);
   const [startTime, setStartTime] = useState(() => roundToInterval(new Date(), 30));
+
   const [selectedClient, setSelectedClient] = useState<Option | null>(null);
   const [clientSearch, setClientSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
+
+  const [treatmentPrice, setTreatmentPrice] = useState("0");
+  const [amountPaid, setAmountPaid] = useState("0");
+
   const [localClients, setLocalClients] = useState(safeArray(clients));
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
   const [isPending, startTransition] = useTransition();
+
   const formRef = useRef<HTMLFormElement>(null);
+
   const router = useRouter();
+
   const timeSlots = useMemo(() => buildTimeSlots(interval), [interval]);
+
   const filteredClients = useMemo(() => {
     const query = safeLower(clientSearch.trim());
+
     if (!query) return [];
-    return safeArray(localClients).filter((client) => safeLower(client.name).includes(query)).slice(0, 6);
+
+    return safeArray(localClients)
+      .filter((client) => safeLower(client.name).includes(query))
+      .slice(0, 6);
   }, [clientSearch, localClients]);
-  const startsAt = `${date}T${startTime}`;
+
+  const startsAt = `${date}T${startTime}`;  
   const endsAt = addMinutesToLocalInput(startsAt, duration);
 
+  const balanceDue = Math.max(
+    Number(treatmentPrice || 0) - Number(amountPaid || 0),
+    0
+  ).toFixed(2);
   function handleServiceChange(serviceId: string) {
-    const service = safeArray(services).find((item) => item.id === serviceId);
-    if (service?.duration_minutes) setDuration(service.duration_minutes);
+    const service = safeArray(services).find(
+      (item) => String(item.id) === String(serviceId)
+    );
+
+    if (!service) return;
+
+    if (service.duration_minutes) {
+      setDuration(Number(service.duration_minutes));
+    }
+
+    const detectedPrice = service.price ?? 0;
+    setTreatmentPrice(String(detectedPrice));
   }
 
   function handleIntervalChange(nextInterval: (typeof intervals)[number]) {
@@ -67,25 +96,53 @@ export function AppointmentScheduler({
       ref={formRef}
       onSubmit={(event) => {
         event.preventDefault();
+
         if (!selectedClient) {
-          setFeedback({ type: "error", message: "Select or create a client before booking." });
+          setFeedback({
+            type: "error",
+            message: "Select or create a client before booking."
+          });
+
           return;
         }
+
         const formData = new FormData(event.currentTarget);
+
+        formData.set("balance_due", balanceDue);
+
         setFeedback(null);
+
         startTransition(async () => {
           try {
             await action(formData);
+
             formRef.current?.reset();
+
             setSelectedClient(null);
             setClientSearch("");
             setDate(today);
+
             setDuration(60);
+
+            setTreatmentPrice("0");
+            setAmountPaid("0");
+
             setStartTime(roundToInterval(new Date(), interval));
-            setFeedback({ type: "success", message: "Appointment created." });
+
+            setFeedback({
+              type: "success",
+              message: "Appointment created."
+            });
+
             router.refresh();
           } catch (error) {
-            setFeedback({ type: "error", message: error instanceof Error ? error.message : "Appointment could not be created." });
+            setFeedback({
+              type: "error",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Appointment could not be created."
+            });
           }
         });
       }}
@@ -94,6 +151,7 @@ export function AppointmentScheduler({
       <input type="hidden" name="client_id" value={selectedClient?.id ?? ""} />
       <input type="hidden" name="starts_at" value={startsAt} />
       <input type="hidden" name="ends_at" value={endsAt} />
+      <input type="hidden" name="balance_due" value={balanceDue} />
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.9fr]">
         <div className="grid gap-4 rounded-lg border bg-background/50 p-4">
@@ -101,6 +159,7 @@ export function AppointmentScheduler({
             <CalendarDays className="h-4 w-4 text-primary" />
             Appointment details
           </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <ClientSearchField
               clients={filteredClients}
@@ -108,61 +167,157 @@ export function AppointmentScheduler({
               selectedClient={selectedClient}
               disabled={disabled}
               onCreated={(client) => {
-                setLocalClients((current) => [...current, client].sort((a, b) => a.name.localeCompare(b.name)));
+                setLocalClients((current) =>
+                  [...current, client].sort((a, b) =>
+                    a.name.localeCompare(b.name)
+                  )
+                );
+
                 setSelectedClient(client);
                 setClientSearch(client.name);
-                setFeedback({ type: "success", message: `${client.name} added and selected.` });
+
+                setFeedback({
+                  type: "success",
+                  message: `${client.name} added and selected.`
+                });
               }}
               onQueryChange={(value) => {
                 setClientSearch(value);
-                if (selectedClient) setSelectedClient(null);
+
+                if (selectedClient) {
+                  setSelectedClient(null);
+                }
               }}
               onSelect={(client) => {
                 setSelectedClient(client);
                 setClientSearch(client.name);
               }}
             />
-            <SelectField label="Staff 1" name="staff_id" items={staff} placeholder="Unassigned" />
-            <SelectField label="Staff 2" name="staff_id_2" items={staff} placeholder="Unassigned" />
-            <SelectField label="Status" name="status" items={statuses.map((status) => ({ id: status, name: humanize(status) }))} required defaultValue="scheduled" />
+
+            <SelectField
+              label="Staff 1"
+              name="staff_id"
+              items={staff}
+              placeholder="Unassigned"
+            />
+
+            <SelectField
+              label="Staff 2"
+              name="staff_id_2"
+              items={staff}
+              placeholder="Unassigned"
+            />
+
+            <SelectField
+              label="Status"
+              name="status"
+              items={statuses.map((status) => ({
+                id: status,
+                name: humanize(status)
+              }))}
+              required
+              defaultValue="scheduled"
+            />
           </div>
+
           <TreatmentBlocks
             services={services}
             staff={staff}
             query={serviceSearch}
             onQueryChange={setServiceSearch}
-            onPrimaryServiceChange={handleServiceChange}
+            onPrimaryServiceChange={(serviceId) => handleServiceChange(serviceId)}
           />
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Session number">
-              <Input name="session_number" type="number" min="1" placeholder="e.g. 4" />
+              <Input
+                name="session_number"
+                type="number"
+                min="1"
+                placeholder="e.g. 4"
+              />
             </Field>
+
             <Field label="Total sessions">
-              <Input name="total_sessions" type="number" min="1" placeholder="e.g. 8" />
+              <Input
+                name="total_sessions"
+                type="number"
+                min="1"
+                placeholder="e.g. 8"
+              />
             </Field>
-            <SelectField label="Payment status" name="payment_status" items={paymentStatuses.map((status) => ({ id: status, name: humanize(status) }))} required defaultValue="due" />
+
+            <SelectField
+              label="Payment status"
+              name="payment_status"
+              items={paymentStatuses.map((status) => ({
+                id: status,
+                name: humanize(status)
+              }))}
+              required
+              defaultValue="due"
+            />
+
             <Field label="Treatment price">
-              <PriceInput name="treatment_price" defaultValue="0" required />
+              <Input
+                name="treatment_price"
+                inputMode="decimal"
+                value={treatmentPrice}
+                onChange={(event) =>
+                  setTreatmentPrice(
+                    event.target.value.replace(/[^0-9.]/g, "")
+                  )
+                }
+                required
+              />
             </Field>
+
             <Field label="Deposit">
-              <PriceInput name="deposit_amount" defaultValue="0" required />
+              <PriceInput
+                name="deposit_amount"
+                defaultValue="0"
+                required
+              />
             </Field>
+
             <Field label="Amount paid">
-              <PriceInput name="amount_paid" defaultValue="0" required />
+              <Input
+                name="amount_paid"
+                inputMode="decimal"
+                value={amountPaid}
+                onChange={(event) =>
+                  setAmountPaid(
+                    event.target.value.replace(/[^0-9.]/g, "")
+                  )
+                }
+                required
+              />
             </Field>
+
             <Field label="Balance due">
-              <PriceInput name="balance_due" defaultValue="0" required />
+              <div className="flex h-10 items-center rounded-md border bg-muted px-3 text-sm font-semibold">
+                £{balanceDue}
+              </div>
             </Field>
           </div>
+
           <Field label="Notes">
-            <Textarea name="notes" placeholder="Internal appointment notes" />
+            <Textarea
+              name="notes"
+              placeholder="Internal appointment notes"
+            />
           </Field>
+
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Outcome">
               <Input name="outcome" placeholder="Optional" />
             </Field>
+
             <Field label="Before/after notes">
-              <Input name="before_after_notes" placeholder="Optional" />
+              <Input
+                name="before_after_notes"
+                placeholder="Optional"
+              />
             </Field>
           </div>
         </div>
@@ -172,15 +327,28 @@ export function AppointmentScheduler({
             <Clock className="h-4 w-4 text-primary" />
             Schedule
           </div>
+
           <Field label="Date">
-            <Input type="date" value={date} min={today} onChange={(event) => setDate(event.target.value)} required />
+            <Input
+              type="date"
+              value={date}
+              min={today}
+              onChange={(event) => setDate(event.target.value)}
+              required
+            />
           </Field>
+
           <Field label="Start time">
-            <TimeSelector value={startTime} interval={interval} onChange={setStartTime} />
+            <TimeSelector
+              value={startTime}
+              interval={interval}
+              onChange={setStartTime}
+            />
           </Field>
 
           <div className="grid gap-2">
             <span className="text-sm font-medium">Time interval</span>
+
             <div className="grid grid-cols-3 gap-2">
               {intervals.map((item) => (
                 <button
@@ -189,7 +357,9 @@ export function AppointmentScheduler({
                   onClick={() => handleIntervalChange(item)}
                   className={cn(
                     "h-10 rounded-md border text-sm font-medium transition",
-                    interval === item ? "border-primary bg-primary text-primary-foreground" : "bg-surface text-muted-foreground hover:text-foreground"
+                    interval === item
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-surface text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {item}m
@@ -199,7 +369,10 @@ export function AppointmentScheduler({
           </div>
 
           <div className="grid gap-2">
-            <span className="text-sm font-medium">Quick start times</span>
+            <span className="text-sm font-medium">
+              Quick start times
+            </span>
+
             <div className="grid max-h-44 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4">
               {timeSlots.map((slot) => (
                 <button
@@ -208,7 +381,9 @@ export function AppointmentScheduler({
                   onClick={() => setStartTime(slot)}
                   className={cn(
                     "h-9 rounded-md border text-sm font-medium transition",
-                    startTime === slot ? "border-primary bg-primary/10 text-primary" : "bg-surface text-muted-foreground hover:text-foreground"
+                    startTime === slot
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "bg-surface text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {slot}
@@ -219,6 +394,7 @@ export function AppointmentScheduler({
 
           <div className="grid gap-2">
             <span className="text-sm font-medium">Duration</span>
+
             <div className="grid grid-cols-3 gap-2">
               {durations.map((item) => (
                 <button
@@ -227,7 +403,9 @@ export function AppointmentScheduler({
                   onClick={() => setDuration(item)}
                   className={cn(
                     "h-10 rounded-md border text-sm font-medium transition",
-                    duration === item ? "border-primary bg-primary/10 text-primary" : "bg-surface text-muted-foreground hover:text-foreground"
+                    duration === item
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "bg-surface text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {item}m
@@ -241,20 +419,37 @@ export function AppointmentScheduler({
               <Timer className="h-4 w-4" />
               Ends automatically
             </span>
-            <span className="font-semibold">{formatTime(endsAt)}</span>
+
+            <span className="font-semibold">
+              {formatTime(endsAt)}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {feedback ? (
-          <p className={cn("text-sm font-medium", feedback.type === "success" ? "text-success" : "text-error")}>{feedback.message}</p>
+          <p
+            className={cn(
+              "text-sm font-medium",
+              feedback.type === "success"
+                ? "text-success"
+                : "text-error"
+            )}
+          >
+            {feedback.message}
+          </p>
         ) : (
           <p className="text-sm text-muted-foreground">
             {formatDate(date)} · {startTime} to {formatTime(endsAt)}
           </p>
         )}
-        <Button className="sm:w-fit" type="submit" disabled={disabled || !selectedClient || isPending}>
+
+        <Button
+          className="sm:w-fit"
+          type="submit"
+          disabled={disabled || !selectedClient || isPending}
+        >
           {isPending ? "Creating..." : "Create appointment"}
         </Button>
       </div>

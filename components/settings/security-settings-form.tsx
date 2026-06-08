@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { resetDemoTestData, updateSecuritySettings } from "@/lib/actions/settings";
 import type { ActionResult } from "@/lib/action-result";
 import type { Database } from "@/types/database";
 
@@ -29,13 +28,14 @@ export function SecuritySettingsForm({ settings }: { settings: SecuritySettings 
           className="grid gap-4 md:grid-cols-2"
           onSubmit={(event) => {
             event.preventDefault();
+            const form = event.currentTarget;
             setFeedback(null);
-            const formData = new FormData(event.currentTarget);
+            const formData = new FormData(form);
             startTransition(async () => {
-              const result = await updateSecuritySettings(formData);
+              const result = await postActionResult("/api/settings/security", formData);
               setFeedback(result);
               setRecoveryCodes(result.recoveryCodes ?? []);
-              if (result.success && event.currentTarget) event.currentTarget.reset();
+              if (result.success) form.reset();
             });
           }}
         >
@@ -89,12 +89,13 @@ export function SecuritySettingsForm({ settings }: { settings: SecuritySettings 
           className="grid gap-3 rounded-lg border border-error/30 bg-error/5 p-4"
           onSubmit={(event) => {
             event.preventDefault();
+            const form = event.currentTarget;
             setResetFeedback(null);
-            const formData = new FormData(event.currentTarget);
+            const formData = new FormData(form);
             startReset(async () => {
-              const result = await resetDemoTestData(formData);
+              const result = await postActionResult("/api/settings/reset-demo", formData);
               setResetFeedback(result);
-              if (result.success && event.currentTarget) event.currentTarget.reset();
+              if (result.success) form.reset();
             });
           }}
         >
@@ -111,6 +112,20 @@ export function SecuritySettingsForm({ settings }: { settings: SecuritySettings 
       </CardContent>
     </Card>
   );
+}
+
+async function postActionResult(url: string, formData: FormData): Promise<ActionResult> {
+  try {
+    const response = await fetch(url, { method: "POST", body: formData });
+    const result = await response.json();
+    return {
+      success: Boolean(result.success),
+      message: typeof result.message === "string" ? result.message : response.ok ? "Action completed." : "Action could not be completed.",
+      recoveryCodes: Array.isArray(result.recoveryCodes) ? result.recoveryCodes.filter((code: unknown): code is string => typeof code === "string") : undefined
+    };
+  } catch (error) {
+    return { success: false, message: error instanceof Error ? error.message : "Action could not be completed." };
+  }
 }
 
 function downloadCodes(codes: string[]) {

@@ -5,7 +5,7 @@ import { canManage } from "@/lib/auth/permissions";
 import { requireUserProfile } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fail, ok } from "@/lib/action-result";
-import { generateRecoveryCodes, hashAdminPin, hashRecoveryCodes, validateAdminPin } from "@/lib/security/admin-pin";
+import { generateRecoveryCodes, hashAdminPin, hashRecoveryCodes, isSupportedAdminPinHash, validateAdminPin } from "@/lib/security/admin-pin";
 
 export async function updateStatusColours(formData: FormData) {
   const profile = await requireUserProfile();
@@ -49,10 +49,10 @@ export async function updateSecuritySettings(formData: FormData) {
     .from("organisation_security_settings")
     .select("admin_pin_hash")
     .eq("organisation_id", profile.organisation_id)
-    .single();
+    .maybeSingle();
 
   if (newPin || confirmPin) {
-    if (existing?.admin_pin_hash) {
+    if (isSupportedAdminPinHash(existing?.admin_pin_hash)) {
       const pinCheck = await validateAdminPin(profile, formData.get("current_pin"), "settings_update");
       if (!pinCheck.valid) return fail(pinCheck.message);
     }
@@ -75,9 +75,19 @@ export async function updateSecuritySettings(formData: FormData) {
     ...(shouldGenerateRecoveryCodes ? { recovery_code_hashes: hashRecoveryCodes(recoveryCodes) } : {})
   };
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("organisation_security_settings")
     .upsert(payload, { onConflict: "organisation_id" });
+  if (isMissingColumnError(error, "owner_password_verification_enabled")) {
+    const fallbackPayload = omitKeys(payload, ["owner_password_verification_enabled"]);
+    const retry = await supabase.from("organisation_security_settings").upsert(fallbackPayload, { onConflict: "organisation_id" });
+    error = retry.error;
+  }
+  if (isMissingColumnError(error, "recovery_code_hashes")) {
+    const fallbackPayload = omitKeys(payload, ["recovery_code_hashes", "owner_password_verification_enabled"]);
+    const retry = await supabase.from("organisation_security_settings").upsert(fallbackPayload, { onConflict: "organisation_id" });
+    error = retry.error;
+  }
 
   if (error) return fail(`Security settings could not be saved: ${error.message}`);
   await supabase.from("audit_logs").insert({
@@ -115,17 +125,19 @@ export async function resetDemoTestData(formData: FormData) {
     .or("full_name.ilike.%test%,full_name.ilike.%demo%,full_name.ilike.%e2e%,email.ilike.%example.com%");
   const testClientIds = (testClients ?? []).map((client) => client.id);
 
-  await supabase.from("appointment_staff").delete().eq("organisation_id", orgId);
-  await supabase.from("treatment_sessions").delete().eq("organisation_id", orgId);
-  await supabase.from("treatment_plans").delete().eq("organisation_id", orgId);
-  await supabase.from("payment_logs").delete().eq("organisation_id", orgId);
-  await supabase.from("payments").delete().eq("organisation_id", orgId);
-  await supabase.from("treatment_records").delete().eq("organisation_id", orgId);
-  await supabase.from("appointment_history").delete().eq("organisation_id", orgId);
-  await supabase.from("appointments").delete().eq("organisation_id", orgId);
+  for (const table of ["appointment_staff", "treatment_sessions", "treatment_plans", "payment_logs", "payments", "treatment_records", "appointment_history", "appointments"]) {
+    const error = await deleteOrganisationRows(supabase, table, orgId);
+    if (error) return fail(`Demo/test data could not be reset: ${error.message}`);
+  }
 
   if (testClientIds.length) {
-    await supabase.from("clients").update({ archived_at: new Date().toISOString(), archived_by: profile.id }).in("id", testClientIds).eq("organisation_id", orgId);
+    const archivedAt = new Date().toISOString();
+    let { error } = await supabase.from("clients").update({ archived_at: archivedAt, archived_by: profile.id }).in("id", testClientIds).eq("organisation_id", orgId);
+    if (isMissingColumnError(error, "archived_by")) {
+      const retry = await supabase.from("clients").update({ archived_at: archivedAt }).in("id", testClientIds).eq("organisation_id", orgId);
+      error = retry.error;
+    }
+    if (error) return fail(`Test clients could not be archived: ${error.message}`);
   }
 
   await supabase.from("audit_logs").insert({
@@ -142,4 +154,31 @@ export async function resetDemoTestData(formData: FormData) {
   revalidatePath("/calendar");
   revalidatePath("/clients");
   return ok(`Demo/test data reset. Archived ${testClientIds.length} test client${testClientIds.length === 1 ? "" : "s"}.`);
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null, column: string) {
+  return error?.code === "PGRST204" || error?.message?.includes(`'${column}' column`) || error?.message?.includes(column);
+}
+
+function omitKeys<T extends Record<string, unknown>, K extends keyof T>(value: T, keys: K[]) {
+  const copy = { ...value };
+  for (const key of keys) delete copy[key];
+  return copy;
+}
+
+async function deleteOrganisationRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  table: string,
+  organisationId: string
+) {
+  const { error } = await supabase.from(table).delete().eq("organisation_id", organisationId);
+  if (!error || isMissingTableError(error)) return null;
+  return error;
+}
+
+function isMissingTableError(error: { code?: string; message?: string } | null) {
+  return error?.code === "42P01"
+    || error?.code === "PGRST205"
+    || error?.message?.includes("Could not find the table")
+    || error?.message?.includes("does not exist");
 }

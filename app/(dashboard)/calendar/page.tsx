@@ -38,6 +38,7 @@ export default async function CalendarPage() {
               name: service.name,
               category: service.category || "Uncategorised",
               duration_minutes: service.duration_minutes,
+              price: Number(service.price ?? 0),
               color: service.color
             }))}
             disabled={!canCreateAppointment}

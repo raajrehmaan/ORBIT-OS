@@ -75,7 +75,11 @@ export async function createAppointment(formData: FormData) {
     treatment_price: values.treatment_price,
     deposit_amount: values.deposit_amount,
     amount_paid: values.amount_paid,
-    balance_due: values.balance_due,
+    balance_due: Math.max(
+  Number(values.treatment_price ?? 0) -
+  Number(values.amount_paid ?? 0),
+  0
+),
     payment_status: values.payment_status as PaymentStatus,
     completed_at: values.status === "completed" ? new Date().toISOString() : null,
     cancelled_at: values.status === "cancelled" ? new Date().toISOString() : null,
@@ -134,7 +138,11 @@ export async function createAppointment(formData: FormData) {
     treatment_price: values.treatment_price || treatments.reduce((sum, treatment) => sum + treatment.price, 0),
     deposit_amount: values.deposit_amount,
     amount_paid: values.amount_paid,
-    balance_due: values.balance_due,
+    balance_due: Math.max(
+  Number(values.treatment_price ?? 0) -
+  Number(values.amount_paid ?? 0),
+  0
+),
     payment_status: values.payment_status as PaymentStatus,
     paid_at: values.payment_status === "paid" ? new Date().toISOString() : null
   };
@@ -281,7 +289,11 @@ export async function updateAppointment(formData: FormData) {
     treatment_price: values.treatment_price,
     deposit_amount: values.deposit_amount,
     amount_paid: values.amount_paid,
-    balance_due: values.balance_due,
+    balance_due: Math.max(
+  Number(values.treatment_price ?? 0) -
+  Number(values.amount_paid ?? 0),
+  0
+),
     payment_status: values.payment_status as PaymentStatus,
     completed_at: values.status === "completed" ? new Date().toISOString() : null
   };

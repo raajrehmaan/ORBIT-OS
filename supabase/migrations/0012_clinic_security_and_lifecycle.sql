@@ -26,15 +26,6 @@ alter table public.organisation_security_settings
   add column if not exists recovery_code_hashes jsonb not null default '[]'::jsonb,
   add column if not exists owner_password_verification_enabled boolean not null default false;
 
-create table if not exists public.admin_pin_attempts (
-  id uuid primary key default gen_random_uuid(),
-  organisation_id uuid not null references public.organisations(id) on delete cascade,
-  user_id uuid references public.users(id) on delete set null,
-  action text not null,
-  success boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
 create table if not exists public.treatment_plans (
   id uuid primary key default gen_random_uuid(),
   organisation_id uuid not null references public.organisations(id) on delete cascade,
@@ -72,7 +63,6 @@ create table if not exists public.treatment_sessions (
 );
 
 create index if not exists organisation_security_settings_org_idx on public.organisation_security_settings (organisation_id);
-create index if not exists admin_pin_attempts_org_created_idx on public.admin_pin_attempts (organisation_id, created_at desc);
 create index if not exists treatment_plans_org_client_idx on public.treatment_plans (organisation_id, client_id);
 create index if not exists treatment_sessions_org_client_idx on public.treatment_sessions (organisation_id, client_id);
 create index if not exists treatment_sessions_appointment_idx on public.treatment_sessions (appointment_id);
@@ -102,7 +92,6 @@ where not exists (
 );
 
 alter table public.organisation_security_settings enable row level security;
-alter table public.admin_pin_attempts enable row level security;
 alter table public.treatment_plans enable row level security;
 alter table public.treatment_sessions enable row level security;
 
@@ -111,16 +100,6 @@ create policy "owners manage security settings" on public.organisation_security_
 for all
 using (public.has_min_role(organisation_id, array['organisation_owner', 'admin']::public.app_role[]))
 with check (public.has_min_role(organisation_id, array['organisation_owner', 'admin']::public.app_role[]));
-
-drop policy if exists "owners read pin attempts" on public.admin_pin_attempts;
-create policy "owners read pin attempts" on public.admin_pin_attempts
-for select
-using (public.has_min_role(organisation_id, array['organisation_owner', 'admin']::public.app_role[]));
-
-drop policy if exists "members create pin attempts" on public.admin_pin_attempts;
-create policy "members create pin attempts" on public.admin_pin_attempts
-for insert
-with check (public.is_org_member(organisation_id));
 
 drop policy if exists "members read treatment plans" on public.treatment_plans;
 create policy "members read treatment plans" on public.treatment_plans
