@@ -7,7 +7,7 @@ const requiredEnv = {
 
 export function getPublicEnv() {
   const supabaseUrl = normalizeSupabaseUrl(requiredEnv.supabaseUrl, "NEXT_PUBLIC_SUPABASE_URL");
-  const supabaseAnonKey = normalizeJwt(requiredEnv.supabaseAnonKey, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  const supabaseAnonKey = normalizePublicSupabaseKey(requiredEnv.supabaseAnonKey, "NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   return { supabaseUrl, supabaseAnonKey };
 }
@@ -25,7 +25,7 @@ export function getSupabaseEnvDiagnostics() {
 
   return {
     NEXT_PUBLIC_SUPABASE_URL: describeUrl(requiredEnv.supabaseUrl),
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: describeSecret(requiredEnv.supabaseAnonKey),
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: describePublicSecret(requiredEnv.supabaseAnonKey),
     SUPABASE_URL: describeUrl(requiredEnv.serverSupabaseUrl),
     SUPABASE_SERVICE_ROLE_KEY: describeServiceRoleSecret(requiredEnv.supabaseServiceRoleKey),
     urlHostsMatch: Boolean(publicUrl?.hostname && (!serverUrl?.hostname || publicUrl.hostname === serverUrl.hostname))
@@ -40,10 +40,13 @@ function normalizeSupabaseUrl(value: string | undefined, name: string) {
   return url.toString().replace(/\/$/, "");
 }
 
-function normalizeJwt(value: string | undefined, name: string) {
+function normalizePublicSupabaseKey(value: string | undefined, name: string) {
   const token = value?.trim();
   if (!token) throw new Error(`Missing ${name}.`);
-  if (token.split(".").length !== 3) throw new Error(`Invalid ${name}. Expected a Supabase JWT key.`);
+  if (token.length < 32) throw new Error(`Invalid ${name}. Key is too short.`);
+  if (!token.startsWith("sb_publishable_") && token.split(".").length !== 3) {
+    throw new Error(`Invalid ${name}. Expected a Supabase sb_publishable key or legacy JWT anon key.`);
+  }
   return token;
 }
 
@@ -75,12 +78,13 @@ function describeUrl(value: string | undefined) {
   };
 }
 
-function describeSecret(value: string | undefined) {
+function describePublicSecret(value: string | undefined) {
   const token = value?.trim() ?? "";
   return {
     exists: Boolean(token),
     length: token.length,
-    jwtLike: token.split(".").length === 3
+    validShape: token.length >= 32 && (token.startsWith("sb_publishable_") || token.split(".").length === 3),
+    keyType: token.startsWith("sb_publishable_") ? "sb_publishable" : token.split(".").length === 3 ? "jwt" : "unknown"
   };
 }
 
