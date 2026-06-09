@@ -71,8 +71,8 @@ export async function updateSecuritySettings(formData: FormData) {
     protect_services: formData.get("protect_services") === "on",
     protect_financials: formData.get("protect_financials") === "on",
     protect_settings: formData.get("protect_settings") === "on",
-    ...(newPin ? { admin_pin_hash: hashAdminPin(newPin), pin_updated_at: new Date().toISOString() } : {}),
-    ...(shouldGenerateRecoveryCodes ? { recovery_code_hashes: hashRecoveryCodes(recoveryCodes) } : {})
+    ...(newPin ? { admin_pin_hash: await hashAdminPin(newPin), pin_updated_at: new Date().toISOString() } : {}),
+    ...(shouldGenerateRecoveryCodes ? { recovery_code_hashes: await hashRecoveryCodes(recoveryCodes) } : {})
   };
 
   let { error } = await supabase

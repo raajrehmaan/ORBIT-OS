@@ -1,8 +1,14 @@
-import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database, Role } from "@/types/database";
 
 type UserProfile = Database["public"]["Tables"]["users"]["Row"] & { role: Role };
+type SecuritySettings = {
+  admin_pin_hash?: string | null;
+  pin_hash?: string | null;
+  development_pin?: string | null;
+  recovery_code_hashes?: unknown;
+};
 type PinAction =
   | "client_archive"
   | "staff_delete"
@@ -16,22 +22,18 @@ type PinAction =
   | "settings_update"
   | "financial_adjustment";
 
-const ITERATIONS = 120000;
-const KEY_LENGTH = 32;
-const DIGEST = "sha256";
+const BCRYPT_ROUNDS = 10;
 
-export function hashAdminPin(pin: string) {
-  const salt = randomBytes(16).toString("hex");
-  const hash = pbkdf2Sync(normalizeSecret(pin), salt, ITERATIONS, KEY_LENGTH, DIGEST).toString("hex");
-  return `pbkdf2_${DIGEST}$${ITERATIONS}$${salt}$${hash}`;
+export async function hashAdminPin(pin: string) {
+  return bcrypt.hash(normalizeSecret(pin), BCRYPT_ROUNDS);
 }
 
 export function generateRecoveryCodes() {
   return Array.from({ length: 5 }, () => `${randomChunk()}-${randomChunk()}`.toUpperCase());
 }
 
-export function hashRecoveryCodes(codes: string[]) {
-  return codes.map((code) => hashAdminPin(code));
+export async function hashRecoveryCodes(codes: string[]) {
+  return Promise.all(codes.map((code) => hashAdminPin(code)));
 }
 
 export async function validateAdminPin(profile: UserProfile, pinValue: FormDataEntryValue | null, action: PinAction) {
@@ -47,16 +49,17 @@ export async function validateAdminPin(profile: UserProfile, pinValue: FormDataE
     return { valid: false, message: `Security settings could not be loaded: ${error.message ?? "unknown error"}` };
   }
 
-  if (!settings?.admin_pin_hash) {
+  const adminPinHash = firstPinHash(settings);
+  if (!adminPinHash) {
     return { valid: false, message: "Admin PIN is not configured. Set it in Settings > Security Settings." };
   }
 
-  const pinValid = verifyAdminPin(pin, settings.admin_pin_hash);
+  const pinValid = await verifyAdminPin(pin, adminPinHash);
   if (pinValid) {
     return { valid: true, message: "PIN verified." };
   }
 
-  const recoveryResult = verifyRecoveryCode(pin, settings.recovery_code_hashes);
+  const recoveryResult = await verifyRecoveryCode(pin, settings?.recovery_code_hashes);
   if (recoveryResult.valid) {
     await supabase
         .from("organisation_security_settings")
@@ -69,29 +72,19 @@ export async function validateAdminPin(profile: UserProfile, pinValue: FormDataE
 }
 
 export function verifyAdminPin(pin: string, storedHash: string) {
-  const [algorithm, iterationText, salt, expectedHash] = storedHash.split("$");
-  if (algorithm !== `pbkdf2_${DIGEST}` || !iterationText || !salt || !expectedHash) return false;
-  const iterations = Number(iterationText);
-  if (!Number.isInteger(iterations) || iterations < 10000) return false;
-  const actual = pbkdf2Sync(normalizeSecret(pin), salt, iterations, KEY_LENGTH, DIGEST);
-  const expected = Buffer.from(expectedHash, "hex");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  if (!storedHash.startsWith("$2")) return false;
+  return bcrypt.compare(normalizeSecret(pin), storedHash);
 }
 
 export function isSupportedAdminPinHash(storedHash: string | null | undefined) {
   if (!storedHash) return false;
-  const [algorithm, iterationText, salt, expectedHash] = storedHash.split("$");
-  const iterations = Number(iterationText);
-  return algorithm === `pbkdf2_${DIGEST}`
-    && Number.isInteger(iterations)
-    && iterations >= 10000
-    && Boolean(salt)
-    && /^[a-f0-9]+$/i.test(expectedHash ?? "");
+  return storedHash.startsWith("$2");
 }
 
-function verifyRecoveryCode(value: string, storedHashes: unknown) {
+async function verifyRecoveryCode(value: string, storedHashes: unknown) {
   const hashes = Array.isArray(storedHashes) ? storedHashes.filter((item): item is string => typeof item === "string") : [];
-  const matchIndex = hashes.findIndex((hash) => verifyAdminPin(value, hash));
+  const results = await Promise.all(hashes.map((hash) => verifyAdminPin(value, hash)));
+  const matchIndex = results.findIndex(Boolean);
   if (matchIndex < 0) return { valid: false, remainingHashes: hashes };
   return { valid: true, remainingHashes: hashes.filter((_, index) => index !== matchIndex) };
 }
@@ -101,7 +94,7 @@ function normalizeSecret(value: string) {
 }
 
 function randomChunk() {
-  return randomBytes(3).toString("hex");
+  return Math.random().toString(16).slice(2, 8);
 }
 
 async function loadSecuritySettings(
@@ -110,12 +103,12 @@ async function loadSecuritySettings(
 ) {
   const fullResult = await supabase
     .from("organisation_security_settings")
-    .select("admin_pin_hash, recovery_code_hashes")
+    .select("admin_pin_hash, pin_hash, development_pin, recovery_code_hashes")
     .eq("organisation_id", organisationId)
     .maybeSingle();
 
   if (!isMissingColumnError(fullResult.error)) {
-    return { settings: fullResult.data, error: fullResult.error };
+    return { settings: fullResult.data as SecuritySettings | null, error: fullResult.error };
   }
 
   const fallbackResult = await supabase
@@ -125,11 +118,23 @@ async function loadSecuritySettings(
     .maybeSingle();
 
   return {
-    settings: fallbackResult.data ? { ...fallbackResult.data, recovery_code_hashes: [] } : null,
+    settings: fallbackResult.data ? { ...fallbackResult.data, recovery_code_hashes: [] } as SecuritySettings : null,
     error: fallbackResult.error
   };
 }
 
 function isMissingColumnError(error: { code?: string; message?: string } | null) {
-  return error?.code === "PGRST204" || error?.message?.includes("recovery_code_hashes");
+  return error?.code === "PGRST204"
+    || error?.message?.includes("recovery_code_hashes")
+    || error?.message?.includes("pin_hash")
+    || error?.message?.includes("development_pin");
+}
+
+function firstPinHash(settings: unknown) {
+  if (!settings || typeof settings !== "object") return "";
+  const values = settings as { admin_pin_hash?: unknown; pin_hash?: unknown; development_pin?: unknown };
+  for (const value of [values.admin_pin_hash, values.pin_hash, values.development_pin]) {
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "";
 }
