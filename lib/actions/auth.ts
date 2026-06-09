@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { clearClinicSessionCookie, createClinicSessionCookie } from "@/lib/auth/clinic-session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -8,7 +9,7 @@ import { canManage } from "@/lib/auth/permissions";
 import { requireUserProfile } from "@/lib/auth/session";
 import type { Role } from "@/types/database";
 
-export async function signInWithPassword(formData: FormData) {
+export async function signInWithClinicPassword(formData: FormData) {
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const password = String(formData.get("password") ?? "");
   const next = String(formData.get("next") ?? "/dashboard");
@@ -56,7 +57,7 @@ export async function createClinicUser(formData: FormData) {
   if (!fullName) throw new Error("Full name is required");
 
   const supabase = await createSupabaseServerClient();
-  const userId = crypto.randomUUID();
+  const userId = randomUUID();
   const appRole = toAppRole(role);
   const usernameEmail = `${username}@clinic.local`;
 

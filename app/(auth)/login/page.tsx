@@ -1,4 +1,4 @@
-import { signInWithPassword } from "@/lib/actions/auth";
+import { signInWithClinicPassword } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -28,7 +28,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
         </CardHeader>
         <CardContent>
-          <form action={signInWithPassword} className="grid gap-4">
+          <form action={signInWithClinicPassword} className="grid gap-4">
             <input type="hidden" name="next" value={params.next ?? "/dashboard"} />
             <Field label="Username">
               <Input name="username" autoComplete="username" required />
