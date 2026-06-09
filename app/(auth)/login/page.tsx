@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordVisibilityInput } from "@/components/auth/password-visibility-input";
 import { getCurrentUserProfile } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
@@ -34,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               <Input name="username" autoComplete="username" required />
             </Field>
             <Field label="Password">
-              <Input name="password" type="password" autoComplete="current-password" required />
+              <PasswordVisibilityInput />
             </Field>
             {params.error ? <p className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{params.error}</p> : null}
             <Button type="submit">Sign in</Button>

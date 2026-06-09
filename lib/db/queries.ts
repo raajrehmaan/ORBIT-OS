@@ -34,13 +34,7 @@ export async function getTenantData(organisationId: string) {
     supabase.from("appointment_status_colours").select("*").eq("organisation_id", organisationId),
     supabase.from("service_categories").select("*").eq("organisation_id", organisationId).is("archived_at", null).order("name")
   ]);
-  let services = servicesResult.data ?? [];
-
-  if (!services.length) {
-    await supabase.rpc("seed_default_services", { target_organisation_id: organisationId });
-    const seededServices = await supabase.from("services").select("*").eq("organisation_id", organisationId).order("name");
-    services = seededServices.data ?? [];
-  }
+  const services = servicesResult.data ?? [];
 
   const userRoles = new Map(safeArray(users.data).map((user) => [user.id, user.role]));
   const activeStaff = safeArray(staff.data)
@@ -59,6 +53,7 @@ export async function getTenantData(organisationId: string) {
   const activeServices = normalizedServices
     .filter((service) => !service.archived_at)
     .sort((a, b) => `${a.category} ${a.name}`.localeCompare(`${b.category} ${b.name}`));
+  const visibleServices = activeServices.length ? activeServices : normalizedServices;
   const serviceNames = new Map(normalizedServices.map((service) => [service.id, { name: service.name, color: service.color, category: service.category, price: service.price }]));
   const staffLinks = safeArray(appointmentStaffResult.data).map((link) => ({
     ...link,
@@ -94,7 +89,7 @@ export async function getTenantData(organisationId: string) {
   return {
     clients: safeArray(clients.data),
     staff: activeStaff,
-    services: activeServices,
+    services: visibleServices,
     serviceCategories: safeArray(categories.data) as ServiceCategory[],
     appointments: appointments as Appointment[],
     colours

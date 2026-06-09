@@ -134,16 +134,6 @@ export async function deleteServiceCategory(formData: FormData) {
   return ok("Category archived.");
 }
 
-export async function seedDefaultServices() {
-  const profile = await requireUserProfile();
-  if (!profile.organisation_id || !canManage(profile.role, "services")) throw new Error("Not authorised");
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("seed_default_services", { target_organisation_id: profile.organisation_id });
-  if (error) throw new Error(`Example services could not be loaded: ${error.message}`);
-  revalidatePath("/services");
-  revalidatePath("/calendar");
-}
-
 async function resolveCategory(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   organisationId: string,
