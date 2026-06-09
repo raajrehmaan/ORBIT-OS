@@ -1,63 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import type { Database } from "@/types/database";
+import { clinicSessionCookieName, verifyClinicSessionValue } from "@/lib/auth/session-token";
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) return response;
-
-  const supabase = createServerClient<Database>(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-      }
-    }
-  });
-
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
+  const session = await verifyClinicSessionValue(request.cookies.get(clinicSessionCookieName)?.value ?? "");
+  const isAuthenticated = Boolean(session);
   const isAuthRoute = request.nextUrl.pathname.startsWith("/auth");
   const isLoginRoute = request.nextUrl.pathname === "/login";
   const protectedPath = !isLoginRoute && !isAuthRoute;
 
-  if (isLoginRoute && user) {
+  if (isLoginRoute && isAuthenticated) {
     const nextPath = request.nextUrl.searchParams.get("next");
-    const redirectUrl = safeRedirectUrl(nextPath, request.url);
-    return redirectWithCookies(redirectUrl, response);
+    return NextResponse.redirect(safeRedirectUrl(nextPath, request.url));
   }
 
-  if (protectedPath && !user) {
+  if (protectedPath && !isAuthenticated) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return redirectWithCookies(redirectUrl, response);
+    return NextResponse.redirect(redirectUrl);
   }
 
-  if (request.nextUrl.pathname === "/" && user) {
+  if (request.nextUrl.pathname === "/" && isAuthenticated) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
-    return redirectWithCookies(redirectUrl, response);
+    return NextResponse.redirect(redirectUrl);
   }
 
-  return response;
-}
-
-function redirectWithCookies(url: URL, response: NextResponse) {
-  const redirectResponse = NextResponse.redirect(url);
-  response.cookies.getAll().forEach((cookie) => {
-    redirectResponse.cookies.set(cookie);
-  });
-  return redirectResponse;
+  return NextResponse.next();
 }
 
 function safeRedirectUrl(nextPath: string | null, requestUrl: string) {

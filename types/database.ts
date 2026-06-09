@@ -1,6 +1,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Role = "super_admin" | "organisation_owner" | "admin" | "staff" | "client";
+export type ClinicAuthRole = "admin" | "staff" | "receptionist";
 export type StaffRole = "organisation_owner" | "admin" | "therapist" | "receptionist" | "staff";
 export type AppointmentStatus = "scheduled" | "confirmed" | "arrived" | "in_progress" | "completed" | "cancelled" | "rescheduled" | "no_show" | "archived";
 export type PaymentStatus = "paid" | "partial" | "deposit" | "due" | "refunded";
@@ -45,6 +46,27 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "users_organisation_id_fkey";
+            columns: ["organisation_id"];
+            isOneToOne: false;
+            referencedRelation: "organisations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      auth_users: {
+        Row: { id: string; organisation_id: string; username: string; password_hash: string; role: ClinicAuthRole; active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; organisation_id: string; username: string; password_hash: string; role?: ClinicAuthRole; active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; organisation_id?: string; username?: string; password_hash?: string; role?: ClinicAuthRole; active?: boolean; created_at?: string; updated_at?: string };
+        Relationships: [
+          {
+            foreignKeyName: "auth_users_id_fkey";
+            columns: ["id"];
+            isOneToOne: true;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "auth_users_organisation_id_fkey";
             columns: ["organisation_id"];
             isOneToOne: false;
             referencedRelation: "organisations";

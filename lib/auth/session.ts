@@ -1,43 +1,32 @@
 import { redirect } from "next/navigation";
+import { getClinicSessionFromCookies } from "@/lib/auth/clinic-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Database, Role } from "@/types/database";
+import type { Database } from "@/types/database";
 
 type UserProfile = Database["public"]["Tables"]["users"]["Row"];
 
-const roles: Role[] = ["super_admin", "organisation_owner", "admin", "staff", "client"];
-
-function isRole(value: unknown): value is Role {
-  return typeof value === "string" && roles.includes(value as Role);
-}
-
 export async function getCurrentUserProfile() {
+  const session = await getClinicSessionFromCookies();
+  if (!session) return null;
+
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", session.userId)
+    .eq("organisation_id", session.organisationId)
+    .maybeSingle();
 
-  if (!user) return null;
+  if (profile?.organisation_id) return profile;
 
-  const { data: profile, error } = await supabase.from("users").select("*").eq("id", user.id).single();
-
-  if (!error && profile?.organisation_id) return profile;
-
-  const { data: onboardedProfile, error: onboardingError } = await supabase.rpc("ensure_user_organisation");
-  if (onboardingError) {
-    throw new Error(`Unable to complete organisation onboarding: ${onboardingError.message}`);
-  }
-  if (onboardedProfile?.organisation_id) return onboardedProfile;
-
-  const metadataRole = user.app_metadata?.role;
-  const metadataOrganisationId = user.app_metadata?.organisation_id;
   const fallbackProfile: UserProfile = {
-    id: user.id,
-    organisation_id: typeof metadataOrganisationId === "string" ? metadataOrganisationId : null,
-    email: user.email ?? "",
-    full_name: typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : user.email ?? "Authenticated user",
-    role: isRole(metadataRole) ? metadataRole : "client",
-    created_at: user.created_at,
-    updated_at: user.updated_at ?? user.created_at
+    id: session.userId,
+    organisation_id: session.organisationId,
+    email: `${session.username}@clinic.local`,
+    full_name: session.fullName,
+    role: session.role,
+    created_at: new Date(session.expiresAt * 1000).toISOString(),
+    updated_at: new Date(session.expiresAt * 1000).toISOString()
   };
 
   return fallbackProfile;

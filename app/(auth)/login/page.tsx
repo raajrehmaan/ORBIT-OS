@@ -3,15 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUserProfile } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
   const params = await searchParams;
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUserProfile();
 
   if (user) {
     const next = params.next?.startsWith("/") && !params.next.startsWith("//") ? params.next : "/dashboard";
@@ -33,8 +30,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <CardContent>
           <form action={signInWithPassword} className="grid gap-4">
             <input type="hidden" name="next" value={params.next ?? "/dashboard"} />
-            <Field label="Email">
-              <Input name="email" type="email" autoComplete="email" required />
+            <Field label="Username">
+              <Input name="username" autoComplete="username" required />
             </Field>
             <Field label="Password">
               <Input name="password" type="password" autoComplete="current-password" required />

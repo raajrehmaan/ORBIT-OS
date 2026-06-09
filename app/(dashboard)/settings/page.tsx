@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SecuritySettingsForm } from "@/components/settings/security-settings-form";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { changeOwnPassword } from "@/lib/actions/auth";
 import { updateStatusColours } from "@/lib/actions/settings";
 import { roleLabels } from "@/lib/auth/permissions";
 import { requireUserProfile } from "@/lib/auth/session";
@@ -50,6 +53,20 @@ export default async function SettingsPage() {
           <form action={updateStatusColours} className="grid gap-6">
             <ColourGroup statuses={["scheduled", "confirmed", "arrived", "in_progress", "completed", "cancelled", "rescheduled", "no_show", "archived"]} colours={colours ?? []} />
             <SubmitButton className="w-fit" pendingLabel="Saving colours...">Save colours</SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><h2 className="font-semibold">Change password</h2></CardHeader>
+        <CardContent>
+          <form action={changeOwnPassword} className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <Field label="Current password">
+              <Input name="current_password" type="password" autoComplete="current-password" required />
+            </Field>
+            <Field label="New password">
+              <Input name="new_password" type="password" autoComplete="new-password" minLength={8} required />
+            </Field>
+            <SubmitButton className="md:w-fit" pendingLabel="Changing...">Change password</SubmitButton>
           </form>
         </CardContent>
       </Card>

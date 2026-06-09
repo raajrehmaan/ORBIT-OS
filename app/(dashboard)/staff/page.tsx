@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Field } from "@/components/ui/field";
 import { Input, Select, Textarea } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { createClinicUser } from "@/lib/actions/auth";
 import { createStaff, deleteStaff, updateStaff } from "@/lib/actions/staff";
 import { staffRoleLabels } from "@/lib/auth/permissions";
 import { requireUserProfile } from "@/lib/auth/session";
@@ -31,6 +32,24 @@ export default async function StaffPage() {
         <h1 className="text-2xl font-semibold">Staff</h1>
         <p className="text-sm text-muted-foreground">Staff records are tenant-scoped and managed by admins.</p>
       </div>
+      <Card>
+        <CardHeader><h2 className="font-semibold">Create login user</h2></CardHeader>
+        <CardContent>
+          <form action={createClinicUser} className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_auto] xl:items-end">
+            <Field label="Full name"><Input name="full_name" required /></Field>
+            <Field label="Username"><Input name="username" autoComplete="off" required /></Field>
+            <Field label="Password"><Input name="password" type="password" autoComplete="new-password" required minLength={8} /></Field>
+            <Field label="Role">
+              <Select name="role" defaultValue="staff">
+                <option value="admin">Admin</option>
+                <option value="staff">Staff</option>
+                <option value="receptionist">Receptionist</option>
+              </Select>
+            </Field>
+            <SubmitButton className="md:w-fit" pendingLabel="Creating...">Create login</SubmitButton>
+          </form>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader><h2 className="font-semibold">Add staff</h2></CardHeader>
         <CardContent>
