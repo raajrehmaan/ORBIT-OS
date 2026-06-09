@@ -44,9 +44,6 @@ function normalizePublicSupabaseKey(value: string | undefined, name: string) {
   const token = value?.trim();
   if (!token) throw new Error(`Missing ${name}.`);
   if (token.length < 32) throw new Error(`Invalid ${name}. Key is too short.`);
-  if (!token.startsWith("sb_publishable_") && token.split(".").length !== 3) {
-    throw new Error(`Invalid ${name}. Expected a Supabase sb_publishable key or legacy JWT anon key.`);
-  }
   return token;
 }
 
@@ -83,8 +80,8 @@ function describePublicSecret(value: string | undefined) {
   return {
     exists: Boolean(token),
     length: token.length,
-    validShape: token.length >= 32 && (token.startsWith("sb_publishable_") || token.split(".").length === 3),
-    keyType: token.startsWith("sb_publishable_") ? "sb_publishable" : token.split(".").length === 3 ? "jwt" : "unknown"
+    validShape: token.length >= 32,
+    keyType: token.startsWith("sb_publishable_") ? "sb_publishable" : token.split(".").length === 3 ? "jwt" : token.length >= 32 ? "opaque" : "unknown"
   };
 }
 

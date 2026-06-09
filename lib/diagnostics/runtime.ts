@@ -60,8 +60,8 @@ function describePublicSecret(value: string | undefined) {
   return {
     exists: Boolean(token),
     length: token.length,
-    validShape: token.length >= 32 && (token.startsWith("sb_publishable_") || token.split(".").length === 3),
-    keyType: token.startsWith("sb_publishable_") ? "sb_publishable" : token.split(".").length === 3 ? "jwt" : "unknown"
+    validShape: token.length >= 32,
+    keyType: token.startsWith("sb_publishable_") ? "sb_publishable" : token.split(".").length === 3 ? "jwt" : token.length >= 32 ? "opaque" : "unknown"
   };
 }
 
