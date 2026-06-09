@@ -29,14 +29,14 @@ with check (public.has_min_role(organisation_id, array['organisation_owner', 'ad
 -- Optional bootstrap for existing clinics:
 -- Creates a username login for the first owner/admin profile in each organisation
 -- only when the organisation has no auth_users rows yet.
--- Password hash below is for: ChangeMe123!
+-- Bcrypt/crypt-compatible password hash below is for: ChangeMe123!
 -- Change this password immediately after first login.
 insert into public.auth_users (id, organisation_id, username, password_hash, role, active)
 select distinct on (u.organisation_id)
   u.id,
   u.organisation_id,
   lower(regexp_replace(split_part(u.email, '@', 1), '[^a-zA-Z0-9._-]', '', 'g')),
-  'scrypt$5f6d1da59f399a47be48a090a2264ce9$62ac8663d60655a8afba7b57fe1d105663e257c5d7927c2d34fa190c952cd446',
+  '$2b$10$5eSuhRAXwAhhz.4WKfXftuizIcI5ITHVBCdyJNpKdz9ZlVkGO6Ee6',
   'admin',
   true
 from public.users u
