@@ -1,4 +1,5 @@
 import type { Role } from "@/types/database";
+import { envSnapshot, errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
 
 export const clinicSessionCookieName = "orbitos_clinic_session";
 export const clinicSessionMaxAgeSeconds = 60 * 60 * 12;
@@ -18,15 +19,20 @@ export async function signClinicSession(session: ClinicSession) {
 }
 
 export async function verifyClinicSessionValue(value: string) {
-  const [payloadPart, signaturePart] = value.split(".");
-  if (!payloadPart || !signaturePart) return null;
+  try {
+    const [payloadPart, signaturePart] = value.split(".");
+    if (!payloadPart || !signaturePart) return null;
 
-  const expectedSignature = await signValue(payloadPart);
-  if (!constantTimeEqual(signaturePart, expectedSignature)) return null;
+    const expectedSignature = await signValue(payloadPart);
+    if (!constantTimeEqual(signaturePart, expectedSignature)) return null;
 
-  const session = parsePayload(payloadPart);
-  if (!session || session.expiresAt <= Math.floor(Date.now() / 1000)) return null;
-  return session;
+    const session = parsePayload(payloadPart);
+    if (!session || session.expiresAt <= Math.floor(Date.now() / 1000)) return null;
+    return session;
+  } catch (error) {
+    logRuntimeDiagnostic("clinic_session_verify_failed", { ...envSnapshot(), error: errorDetails(error), hasCookieValue: Boolean(value) });
+    return null;
+  }
 }
 
 async function signValue(value: string) {
@@ -56,7 +62,10 @@ function parsePayload(payloadPart: string): ClinicSession | null {
 
 function getSessionSecret() {
   const secret = process.env.AUTH_SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!secret || secret.length < 32) throw new Error("AUTH_SESSION_SECRET must be at least 32 characters.");
+  if (!secret || secret.length < 32) {
+    logRuntimeDiagnostic("clinic_session_secret_invalid", envSnapshot());
+    throw new Error("AUTH_SESSION_SECRET must be at least 32 characters.");
+  }
   return secret;
 }
 

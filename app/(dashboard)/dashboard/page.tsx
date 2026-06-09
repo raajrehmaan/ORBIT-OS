@@ -5,13 +5,28 @@ import { DashboardSchedule } from "@/components/dashboard/dashboard-schedule";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireUserProfile } from "@/lib/auth/session";
 import { getTenantData } from "@/lib/db/queries";
+import { errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
 import { safeArray, safeDate } from "@/lib/utils";
 
 export default async function DashboardPage() {
+  logRuntimeDiagnostic("dashboard_loader_started");
   const profile = await requireUserProfile();
+  logRuntimeDiagnostic("dashboard_profile_loaded", { userId: profile.id, organisationId: profile.organisation_id, role: profile.role });
   let data: Awaited<ReturnType<typeof getTenantData>>;
   if (profile.organisation_id) {
-    data = await getTenantData(profile.organisation_id);
+    try {
+      data = await getTenantData(profile.organisation_id);
+      logRuntimeDiagnostic("dashboard_tenant_data_loaded", {
+        organisationId: profile.organisation_id,
+        clients: data.clients.length,
+        staff: data.staff.length,
+        services: data.services.length,
+        appointments: data.appointments.length
+      });
+    } catch (error) {
+      logRuntimeDiagnostic("dashboard_tenant_data_failed", { organisationId: profile.organisation_id, error: errorDetails(error) });
+      throw error;
+    }
   } else {
     data = { clients: [], staff: [], services: [], serviceCategories: [], appointments: [], colours: [] };
   }

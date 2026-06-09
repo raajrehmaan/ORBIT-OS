@@ -1,8 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { clinicSessionCookieName, verifyClinicSessionValue } from "@/lib/auth/session-token";
+import { errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
 
 export async function middleware(request: NextRequest) {
-  const session = await verifyClinicSessionValue(request.cookies.get(clinicSessionCookieName)?.value ?? "");
+  let session = null;
+  try {
+    session = await verifyClinicSessionValue(request.cookies.get(clinicSessionCookieName)?.value ?? "");
+  } catch (error) {
+    logRuntimeDiagnostic("middleware_session_check_failed", { path: request.nextUrl.pathname, error: errorDetails(error) });
+  }
   const isAuthenticated = Boolean(session);
   const isAuthRoute = request.nextUrl.pathname.startsWith("/auth");
   const isLoginRoute = request.nextUrl.pathname === "/login";

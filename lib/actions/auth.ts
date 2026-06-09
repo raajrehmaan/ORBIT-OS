@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { envSnapshot, errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
 import { clearClinicSessionCookie, createClinicSessionCookie } from "@/lib/auth/clinic-session";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { canManage } from "@/lib/auth/permissions";
@@ -13,6 +14,7 @@ export async function signInWithClinicPassword(formData: FormData) {
   const username = normalizeUsername(String(formData.get("username") ?? ""));
   const password = String(formData.get("password") ?? "");
   const next = String(formData.get("next") ?? "/dashboard");
+  logRuntimeDiagnostic("login_action_started", { usernamePresent: Boolean(username), ...envSnapshot() });
   const supabase = await createSupabaseServerClient();
 
   const { data: authUser, error } = await supabase
@@ -22,11 +24,23 @@ export async function signInWithClinicPassword(formData: FormData) {
     .eq("active", true)
     .maybeSingle();
 
+  if (error) {
+    logRuntimeDiagnostic("login_auth_users_query_failed", { usernamePresent: Boolean(username), error: errorDetails(error) });
+  } else {
+    logRuntimeDiagnostic("login_auth_users_query_ok", {
+      usernamePresent: Boolean(username),
+      found: Boolean(authUser),
+      hasOrganisationId: Boolean(authUser?.organisation_id),
+      role: authUser?.role ?? null
+    });
+  }
+
   if (error || !authUser || !verifyPassword(password, authUser.password_hash)) {
     redirect(`/login?error=${encodeURIComponent("Invalid username or password.")}`);
   }
 
   const role = toAppRole(authUser.role);
+  logRuntimeDiagnostic("login_create_session_cookie_started", { userId: authUser.id, organisationId: authUser.organisation_id, role });
   await createClinicSessionCookie({
     userId: authUser.id,
     organisationId: authUser.organisation_id,
@@ -34,6 +48,7 @@ export async function signInWithClinicPassword(formData: FormData) {
     fullName: extractFullName(authUser.users) || authUser.username,
     role
   });
+  logRuntimeDiagnostic("login_create_session_cookie_ok", { userId: authUser.id, organisationId: authUser.organisation_id, role });
 
   redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
 }
