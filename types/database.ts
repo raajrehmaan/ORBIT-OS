@@ -235,6 +235,21 @@ export type Database = {
         Args: { target_organisation_id: string };
         Returns: undefined;
       };
+      hash_auth_password: {
+        Args: { input_password: string };
+        Returns: string;
+      };
+      verify_auth_user_password: {
+        Args: { input_username: string; input_password: string };
+        Returns: {
+          id: string;
+          username: string;
+          role: string;
+          organisation_id: string;
+          active: boolean;
+          full_name: string | null;
+        }[];
+      };
     };
     Enums: {
       app_role: Role;

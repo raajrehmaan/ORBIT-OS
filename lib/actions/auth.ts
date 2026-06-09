@@ -5,7 +5,6 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { envSnapshot, errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
 import { clearClinicSessionCookie, createClinicSessionCookie } from "@/lib/auth/clinic-session";
-import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { canManage } from "@/lib/auth/permissions";
 import { requireUserProfile } from "@/lib/auth/session";
 import type { Role } from "@/types/database";
@@ -17,12 +16,11 @@ export async function signInWithClinicPassword(formData: FormData) {
   logRuntimeDiagnostic("login_action_started", { usernamePresent: Boolean(username), ...envSnapshot() });
   const supabase = await createSupabaseServerClient();
 
-  const { data: authUser, error } = await supabase
-    .from("auth_users")
-    .select("id, username, password_hash, role, organisation_id, active, users(full_name)")
-    .eq("username", username)
-    .eq("active", true)
-    .maybeSingle();
+  const { data: authUsers, error } = await supabase.rpc("verify_auth_user_password", {
+    input_username: username,
+    input_password: password
+  });
+  const authUser = authUsers?.[0] ?? null;
 
   if (error) {
     logRuntimeDiagnostic("login_auth_users_query_failed", { usernamePresent: Boolean(username), error: errorDetails(error) });
@@ -35,7 +33,7 @@ export async function signInWithClinicPassword(formData: FormData) {
     });
   }
 
-  if (error || !authUser || !verifyPassword(password, authUser.password_hash)) {
+  if (error || !authUser) {
     redirect(`/login?error=${encodeURIComponent("Invalid username or password.")}`);
   }
 
@@ -45,7 +43,7 @@ export async function signInWithClinicPassword(formData: FormData) {
     userId: authUser.id,
     organisationId: authUser.organisation_id,
     username: authUser.username,
-    fullName: extractFullName(authUser.users) || authUser.username,
+    fullName: authUser.full_name || authUser.username,
     role
   });
   logRuntimeDiagnostic("login_create_session_cookie_ok", { userId: authUser.id, organisationId: authUser.organisation_id, role });
@@ -75,6 +73,7 @@ export async function createClinicUser(formData: FormData) {
   const userId = randomUUID();
   const appRole = toAppRole(role);
   const usernameEmail = `${username}@clinic.local`;
+  const passwordHash = await hashPasswordInDatabase(password);
 
   const { error: profileError } = await supabase.from("users").insert({
     id: userId,
@@ -89,7 +88,7 @@ export async function createClinicUser(formData: FormData) {
     id: userId,
     organisation_id: profile.organisation_id,
     username,
-    password_hash: hashPassword(password),
+    password_hash: passwordHash,
     role,
     active: true
   });
@@ -105,10 +104,17 @@ export async function changeOwnPassword(formData: FormData) {
   if (newPassword.length < 8) throw new Error("New password must be at least 8 characters");
 
   const supabase = await createSupabaseServerClient();
-  const { data: authUser, error } = await supabase.from("auth_users").select("password_hash").eq("id", profile.id).maybeSingle();
-  if (error || !authUser || !verifyPassword(currentPassword, authUser.password_hash)) throw new Error("Current password is incorrect");
+  const { data: currentAuthUser, error: usernameError } = await supabase.from("auth_users").select("username").eq("id", profile.id).maybeSingle();
+  if (usernameError || !currentAuthUser?.username) throw new Error("Current login user could not be found");
+  const { data: authUsers, error } = await supabase.rpc("verify_auth_user_password", {
+    input_username: currentAuthUser.username,
+    input_password: currentPassword
+  });
+  const authUser = authUsers?.find((user) => user.id === profile.id) ?? null;
+  if (error || !authUser) throw new Error("Current password is incorrect");
 
-  const { error: updateError } = await supabase.from("auth_users").update({ password_hash: hashPassword(newPassword) }).eq("id", profile.id);
+  const passwordHash = await hashPasswordInDatabase(newPassword);
+  const { error: updateError } = await supabase.from("auth_users").update({ password_hash: passwordHash }).eq("id", profile.id);
   if (updateError) throw new Error(`Password could not be changed: ${updateError.message}`);
 
   redirect("/settings");
@@ -128,11 +134,9 @@ function toAppRole(value: string): Role {
   return "staff";
 }
 
-function extractFullName(value: unknown) {
-  if (Array.isArray(value)) return typeof value[0]?.full_name === "string" ? value[0].full_name : "";
-  if (value && typeof value === "object" && "full_name" in value) {
-    const fullName = (value as { full_name?: unknown }).full_name;
-    return typeof fullName === "string" ? fullName : "";
-  }
-  return "";
+async function hashPasswordInDatabase(password: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("hash_auth_password", { input_password: password });
+  if (error || !data) throw new Error(`Password could not be hashed: ${error?.message ?? "No hash returned"}`);
+  return data;
 }
