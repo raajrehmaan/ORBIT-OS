@@ -14,7 +14,7 @@ export function getPublicEnv() {
 
 export function getAdminEnv() {
   const supabaseUrl = normalizeSupabaseUrl(requiredEnv.serverSupabaseUrl || requiredEnv.supabaseUrl, "SUPABASE_URL");
-  const supabaseServiceRoleKey = normalizeJwt(requiredEnv.supabaseServiceRoleKey, "SUPABASE_SERVICE_ROLE_KEY");
+  const supabaseServiceRoleKey = normalizeServiceRoleKey(requiredEnv.supabaseServiceRoleKey, "SUPABASE_SERVICE_ROLE_KEY");
 
   return { supabaseUrl, supabaseServiceRoleKey };
 }
@@ -27,7 +27,7 @@ export function getSupabaseEnvDiagnostics() {
     NEXT_PUBLIC_SUPABASE_URL: describeUrl(requiredEnv.supabaseUrl),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: describeSecret(requiredEnv.supabaseAnonKey),
     SUPABASE_URL: describeUrl(requiredEnv.serverSupabaseUrl),
-    SUPABASE_SERVICE_ROLE_KEY: describeSecret(requiredEnv.supabaseServiceRoleKey),
+    SUPABASE_SERVICE_ROLE_KEY: describeServiceRoleSecret(requiredEnv.supabaseServiceRoleKey),
     urlHostsMatch: Boolean(publicUrl?.hostname && (!serverUrl?.hostname || publicUrl.hostname === serverUrl.hostname))
   };
 }
@@ -44,6 +44,16 @@ function normalizeJwt(value: string | undefined, name: string) {
   const token = value?.trim();
   if (!token) throw new Error(`Missing ${name}.`);
   if (token.split(".").length !== 3) throw new Error(`Invalid ${name}. Expected a Supabase JWT key.`);
+  return token;
+}
+
+function normalizeServiceRoleKey(value: string | undefined, name: string) {
+  const token = value?.trim();
+  if (!token) throw new Error(`Missing ${name}.`);
+  if (token.length < 32) throw new Error(`Invalid ${name}. Key is too short.`);
+  if (!isServiceRoleKeyShape(token)) {
+    throw new Error(`Invalid ${name}. Expected a Supabase sb_secret key or legacy JWT service role key.`);
+  }
   return token;
 }
 
@@ -72,4 +82,18 @@ function describeSecret(value: string | undefined) {
     length: token.length,
     jwtLike: token.split(".").length === 3
   };
+}
+
+function describeServiceRoleSecret(value: string | undefined) {
+  const token = value?.trim() ?? "";
+  return {
+    exists: Boolean(token),
+    length: token.length,
+    validShape: token.length >= 32 && isServiceRoleKeyShape(token),
+    keyType: token.startsWith("sb_secret_") ? "sb_secret" : token.split(".").length === 3 ? "jwt" : "unknown"
+  };
+}
+
+function isServiceRoleKeyShape(token: string) {
+  return token.startsWith("sb_secret_") || token.split(".").length === 3;
 }
