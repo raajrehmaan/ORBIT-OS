@@ -7,20 +7,24 @@ export function middleware(req: NextRequest) {
   const publicRoutes = [
     '/login',
     '/signup',
-    '/api/auth/signup'
+    '/api/auth/signup',
+    '/_next',
+    '/favicon.ico'
   ]
 
   const isPublicRoute = publicRoutes.some(
     (route) => pathname.startsWith(route)
   )
 
+  if (isPublicRoute) {
+    return NextResponse.next()
+  }
+
   const session =
     req.cookies.get('sb-access-token') ||
-    req.cookies.get(
-      'supabase-auth-token'
-    )
+    req.cookies.get('supabase-auth-token')
 
-  if (!isPublicRoute && !session) {
+  if (!session) {
     return NextResponse.redirect(
       new URL('/login', req.url)
     )
@@ -30,7 +34,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)'
-  ]
+  matcher: ['/((?!.*\\.).*)']
 }
