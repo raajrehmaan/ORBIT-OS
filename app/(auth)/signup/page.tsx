@@ -1,70 +1,170 @@
-import Link from "next/link";
+'use client'
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function SignupPage() {
+  const router = useRouter()
+
+  const [clinicName, setClinicName] =
+    useState('')
+
+  const [ownerName, setOwnerName] =
+    useState('')
+
+  const [email, setEmail] =
+    useState('')
+
+  const [password, setPassword] =
+    useState('')
+
+  const [phone, setPhone] =
+    useState('')
+
+  const [slug, setSlug] =
+    useState('')
+
+  const [loading, setLoading] =
+    useState(false)
+
+  const [message, setMessage] =
+    useState('')
+
+  async function handleSignup() {
+    try {
+      setLoading(true)
+      setMessage('')
+
+      const response = await fetch(
+        '/api/auth/signup',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json'
+          },
+          body: JSON.stringify({
+            clinicName,
+            ownerName,
+            email,
+            password,
+            phone,
+            slug
+          })
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMessage(
+          data.message || 'Signup failed'
+        )
+        return
+      }
+
+      setMessage(
+        'Account created successfully'
+      )
+
+      setTimeout(() => {
+        router.push('/login')
+      }, 1500)
+
+    } catch (error) {
+      console.error(error)
+
+      setMessage('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-md bg-primary font-bold text-primary-foreground">
-              O
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-6">
+      <div className="bg-white rounded-xl shadow-md p-8 w-full max-w-lg space-y-4">
 
-            <div>
-              <h1 className="text-lg font-semibold">
-                Create Clinic Account
-              </h1>
+        <h1 className="text-3xl font-bold">
+          Create Clinic Account
+        </h1>
 
-              <p className="text-sm text-muted-foreground">
-                OrbitOS organisation onboarding
-              </p>
-            </div>
+        <input
+          type="text"
+          placeholder="Clinic Name"
+          value={clinicName}
+          onChange={(e) =>
+            setClinicName(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <input
+          type="text"
+          placeholder="Owner Name"
+          value={ownerName}
+          onChange={(e) =>
+            setOwnerName(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) =>
+            setEmail(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) =>
+            setPassword(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <input
+          type="text"
+          placeholder="Phone"
+          value={phone}
+          onChange={(e) =>
+            setPhone(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <input
+          type="text"
+          placeholder="Clinic Slug"
+          value={slug}
+          onChange={(e) =>
+            setSlug(e.target.value)
+          }
+          className="w-full border rounded-lg p-3"
+        />
+
+        <button
+          onClick={handleSignup}
+          disabled={loading}
+          className="w-full bg-black text-white rounded-lg p-3"
+        >
+          {loading
+            ? 'Creating Account...'
+            : 'Create Account'}
+        </button>
+
+        {message && (
+          <div className="text-sm text-center">
+            {message}
           </div>
-        </CardHeader>
+        )}
 
-        <CardContent className="grid gap-4">
-          <Field label="Clinic Name">
-            <Input placeholder="Laser Treat Esthetica" />
-          </Field>
-
-          <Field label="Owner Username">
-            <Input placeholder="owner username" />
-          </Field>
-
-          <Field label="Email">
-            <Input
-              type="email"
-              placeholder="clinic@email.com"
-            />
-          </Field>
-
-          <Field label="Password">
-            <Input
-              type="password"
-              placeholder="Create password"
-            />
-          </Field>
-
-          <Button type="button">
-            Create Account
-          </Button>
-
-          <Link href="/login" className="w-full">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-            >
-              Back to Login
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    </main>
-  );
+      </div>
+    </div>
+  )
 }
