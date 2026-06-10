@@ -1,56 +1,51 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-export const dynamic = 'force-dynamic'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
-
-const supabase = createClient(supabaseUrl, supabaseKey)
-
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL
 
-    const {
-      client_id,
-      treatment_name,
-      treatment_category,
-      practitioner_name,
-      session_date,
-      session_time,
-      notes,
-      amount_paid
-    } = body
+    const serviceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!client_id || !treatment_name || !session_date) {
+    if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Missing required fields'
+          message:
+            'Missing Supabase environment variables'
         },
         {
-          status: 400
+          status: 500
         }
       )
     }
 
-    const { data, error } = await supabase
-      .from('client_history')
-      .insert([
-        {
-          client_id,
-          treatment_name,
-          treatment_category,
-          practitioner_name,
-          session_date,
-          session_time,
-          notes,
-          amount_paid,
-          source: 'manual_import'
-        }
-      ])
-      .select()
+    const supabase = createClient(
+      supabaseUrl,
+      serviceKey
+    )
+
+    const body = await req.json()
+
+    const {
+      client_id,
+      treatment,
+      notes
+    } = body
+
+    const { data, error } =
+      await supabase
+        .from('client_history')
+        .insert([
+          {
+            client_id,
+            treatment,
+            notes
+          }
+        ])
+        .select()
 
     if (error) {
       return NextResponse.json(
@@ -70,8 +65,6 @@ export async function POST(req: Request) {
     })
 
   } catch (error) {
-    console.error(error)
-
     return NextResponse.json(
       {
         success: false,
@@ -82,11 +75,4 @@ export async function POST(req: Request) {
       }
     )
   }
-}
-
-export async function GET() {
-  return NextResponse.json({
-    success: true,
-    message: 'History API live'
-  })
 }

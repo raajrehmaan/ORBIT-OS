@@ -1,39 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const { pin } = body
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL
 
-    if (!pin) {
+    const serviceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(
         {
           success: false,
-          message: 'PIN required'
-        },
-        {
-          status: 400
-        }
-      )
-    }
-
-    const { data, error } = await supabase
-      .from('security_settings')
-      .select('setting_value')
-      .eq('setting_key', 'history_admin_pin')
-      .single()
-
-    if (error) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'PIN lookup failed'
+          message:
+            'Missing Supabase environment variables'
         },
         {
           status: 500
@@ -41,10 +22,48 @@ export async function POST(req: Request) {
       )
     }
 
-    const valid = data.setting_value === pin
+    const supabase = createClient(
+      supabaseUrl,
+      serviceKey
+    )
+
+    const body = await req.json()
+
+    const { pin } = body
+
+    if (!pin) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Missing PIN'
+        },
+        {
+          status: 400
+        }
+      )
+    }
+
+    const { data, error } =
+      await supabase
+        .from('settings')
+        .select('history_pin')
+        .single()
+
+    if (error) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: error.message
+        },
+        {
+          status: 500
+        }
+      )
+    }
 
     return NextResponse.json({
-      success: valid
+      success:
+        data?.history_pin === pin
     })
 
   } catch (error) {

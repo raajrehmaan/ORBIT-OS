@@ -1,34 +1,39 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(req.url)
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL
 
-    const clientId = searchParams.get('clientId')
+    const serviceKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    if (!clientId) {
+    if (!supabaseUrl || !serviceKey) {
       return NextResponse.json(
         {
           success: false,
-          message: 'clientId required'
+          message:
+            'Missing Supabase environment variables'
         },
         {
-          status: 400
+          status: 500
         }
       )
     }
 
-    const { data, error } = await supabase
-      .from('client_history')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('session_date', { ascending: false })
+    const supabase = createClient(
+      supabaseUrl,
+      serviceKey
+    )
+
+    const { data, error } =
+      await supabase
+        .from('client_history')
+        .select('*')
+        .order('created_at', {
+          ascending: false
+        })
 
     if (error) {
       return NextResponse.json(
