@@ -1,8 +1,8 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type Role = "super_admin" | "organisation_owner" | "admin" | "staff" | "client";
-export type ClinicAuthRole = "admin" | "staff" | "receptionist";
-export type StaffRole = "organisation_owner" | "admin" | "therapist" | "receptionist" | "staff";
+export type Role = "super_admin" | "organisation_owner" | "admin" | "manager" | "staff" | "client";
+export type ClinicAuthRole = "admin" | "manager" | "staff" | "receptionist";
+export type StaffRole = "organisation_owner" | "admin" | "manager" | "therapist" | "receptionist" | "staff";
 export type AppointmentStatus = "scheduled" | "confirmed" | "arrived" | "in_progress" | "completed" | "cancelled" | "rescheduled" | "no_show" | "archived";
 export type PaymentStatus = "paid" | "partial" | "deposit" | "due" | "refunded";
 
@@ -10,9 +10,9 @@ export type Database = {
   public: {
     Tables: {
       organisations: {
-        Row: { id: string; name: string; slug: string; created_at: string; updated_at: string };
-        Insert: { id?: string; name: string; slug: string; created_at?: string; updated_at?: string };
-        Update: { id?: string; name?: string; slug?: string; created_at?: string; updated_at?: string };
+        Row: { id: string; name: string; slug: string; business_info: Json; logo_path: string | null; brand_primary_color: string | null; brand_secondary_color: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; name: string; slug: string; business_info?: Json; logo_path?: string | null; brand_primary_color?: string | null; brand_secondary_color?: string | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; name?: string; slug?: string; business_info?: Json; logo_path?: string | null; brand_primary_color?: string | null; brand_secondary_color?: string | null; created_at?: string; updated_at?: string };
         Relationships: [];
       };
       users: {
@@ -186,6 +186,12 @@ export type Database = {
         Row: { id: string; organisation_id: string | null; user_id: string | null; entity_type: string; entity_id: string | null; action: string; metadata: Json; created_at: string };
         Insert: { id?: string; organisation_id?: string | null; user_id?: string | null; entity_type: string; entity_id?: string | null; action: string; metadata?: Json; created_at?: string };
         Update: { id?: string; organisation_id?: string | null; user_id?: string | null; entity_type?: string; entity_id?: string | null; action?: string; metadata?: Json; created_at?: string };
+        Relationships: [];
+      };
+      client_photos: {
+        Row: { id: string; organisation_id: string; client_id: string; appointment_id: string | null; category: "consultation" | "before" | "after" | "progress" | "consent" | "treatment-area" | "followup"; storage_path: string; thumbnail_path: string | null; original_filename: string | null; mime_type: string | null; file_size: number | null; notes: string | null; archived_at: string | null; archived_by: string | null; created_by: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; organisation_id: string; client_id: string; appointment_id?: string | null; category: "consultation" | "before" | "after" | "progress" | "consent" | "treatment-area" | "followup"; storage_path: string; thumbnail_path?: string | null; original_filename?: string | null; mime_type?: string | null; file_size?: number | null; notes?: string | null; archived_at?: string | null; archived_by?: string | null; created_by?: string | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; organisation_id?: string; client_id?: string; appointment_id?: string | null; category?: "consultation" | "before" | "after" | "progress" | "consent" | "treatment-area" | "followup"; storage_path?: string; thumbnail_path?: string | null; original_filename?: string | null; mime_type?: string | null; file_size?: number | null; notes?: string | null; archived_at?: string | null; archived_by?: string | null; created_by?: string | null; created_at?: string; updated_at?: string };
         Relationships: [];
       };
       status_colours: {

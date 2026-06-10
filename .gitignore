@@ -4,3 +4,5 @@ node_modules
 *.tsbuildinfo
 dist
 coverage
+.vercel
+.env*

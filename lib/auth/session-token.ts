@@ -53,7 +53,7 @@ function parsePayload(payloadPart: string): ClinicSession | null {
     if (!value || typeof value !== "object") return null;
     const session = value as Partial<ClinicSession>;
     if (!session.userId || !session.organisationId || !session.username || !session.fullName || !session.role || !session.expiresAt) return null;
-    if (!["super_admin", "organisation_owner", "admin", "staff", "client"].includes(session.role)) return null;
+    if (!["super_admin", "organisation_owner", "admin", "manager", "staff", "client"].includes(session.role)) return null;
     return session as ClinicSession;
   } catch {
     return null;

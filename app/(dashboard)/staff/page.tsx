@@ -13,7 +13,7 @@ import { getTenantData } from "@/lib/db/queries";
 import { safeArray } from "@/lib/utils";
 import type { StaffRole } from "@/types/database";
 
-const editableStaffRoles: StaffRole[] = ["staff", "therapist", "receptionist", "admin"];
+const editableStaffRoles: StaffRole[] = ["staff", "manager", "therapist", "receptionist", "admin"];
 
 export default async function StaffPage() {
   const profile = await requireUserProfile();

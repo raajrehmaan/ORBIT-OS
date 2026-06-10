@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { OrganisationOwnerSettings } from "@/components/settings/organisation-owner-settings";
 import { SecuritySettingsForm } from "@/components/settings/security-settings-form";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Field } from "@/components/ui/field";
@@ -29,6 +30,9 @@ export default async function SettingsPage() {
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Organisation and account context.</p>
       </div>
+      {profile.role === "organisation_owner" || profile.role === "super_admin" ? (
+        <OrganisationOwnerSettings organisation={organisation} />
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><h2 className="font-semibold">Organisation</h2></CardHeader>

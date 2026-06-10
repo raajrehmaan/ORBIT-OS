@@ -8,7 +8,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { staffRoleLabels } from "@/lib/auth/permissions";
 import type { StaffRole } from "@/types/database";
 
-const editableStaffRoles: StaffRole[] = ["staff", "therapist", "receptionist", "admin"];
+const editableStaffRoles: StaffRole[] = ["staff", "manager", "therapist", "receptionist", "admin"];
 
 type StaffEditAction = (formData: FormData) => void | Promise<void | ActionResult>;
 

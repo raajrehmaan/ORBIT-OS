@@ -14,7 +14,7 @@ const staffSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),
   notes: z.string().optional(),
-  role: z.enum(["organisation_owner", "admin", "therapist", "receptionist", "staff"]),
+  role: z.enum(["organisation_owner", "admin", "manager", "therapist", "receptionist", "staff"]),
   active: z.string().optional()
 });
 
@@ -131,7 +131,7 @@ function withoutColumn<T extends Record<string, unknown>, K extends keyof T>(pay
 
 function normalizeStaffRole(value: unknown): StaffRole {
   if (value === "reception") return "receptionist";
-  if (value === "organisation_owner" || value === "admin" || value === "therapist" || value === "receptionist" || value === "staff") return value;
+  if (value === "organisation_owner" || value === "admin" || value === "manager" || value === "therapist" || value === "receptionist" || value === "staff") return value;
   return "staff";
 }
 

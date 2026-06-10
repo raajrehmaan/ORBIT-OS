@@ -122,12 +122,13 @@ function normalizeUsername(value: string) {
 }
 
 function normalizeClinicRole(value: string) {
-  if (value === "admin" || value === "receptionist" || value === "staff") return value;
+  if (value === "admin" || value === "manager" || value === "receptionist" || value === "staff") return value;
   return "staff";
 }
 
 function toAppRole(value: string): Role {
   if (value === "admin") return "admin";
+  if (value === "manager" || value === "receptionist") return "manager";
   return "staff";
 }
 

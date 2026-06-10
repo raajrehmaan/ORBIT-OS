@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
+import { ClientPhotoHistory } from "@/components/clients/client-photo-history";
 import { FutureSessionActions } from "@/components/clients/future-session-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { requireUserProfile } from "@/lib/auth/session";
 import { getClientMasterFile } from "@/lib/db/queries";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { currencyFromPrice, humanize, safeArray, safeDate } from "@/lib/utils";
 
 export default async function ClientProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -11,6 +13,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
   const { id } = await params;
   const data = await getClientMasterFile(profile.organisation_id, id);
   if (!data.client) notFound();
+  const photos = await getClientPhotos(profile.organisation_id, id);
 
   const appointments = safeArray(data.appointments);
   const payments = safeArray(data.payments);
@@ -101,6 +104,7 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
           {!appointments.length ? <p className="text-sm text-muted-foreground">No appointment history yet.</p> : null}
         </CardContent>
       </Card>
+      <ClientPhotoHistory clientId={id} photos={photos} />
       <Card>
         <CardHeader>
           <h2 className="font-semibold">Future Sessions</h2>
@@ -166,6 +170,30 @@ export default async function ClientProfilePage({ params }: { params: Promise<{ 
       </Card>
     </div>
   );
+}
+
+async function getClientPhotos(organisationId: string, clientId: string) {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("client_photos")
+    .select("id, client_id, category, notes, created_at, original_filename, storage_path")
+    .eq("organisation_id", organisationId)
+    .eq("client_id", clientId)
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+
+  return Promise.all(safeArray(data).map(async (photo) => {
+    const signed = await supabase.storage.from("organisation-assets").createSignedUrl(photo.storage_path, 60 * 10);
+    return {
+      id: photo.id,
+      client_id: photo.client_id,
+      category: photo.category,
+      notes: photo.notes,
+      created_at: photo.created_at,
+      original_filename: photo.original_filename,
+      signedUrl: signed.data?.signedUrl ?? null
+    };
+  }));
 }
 
 function appointmentStatus(appointment: { appointment_status?: string | null; status?: string | null }) {
