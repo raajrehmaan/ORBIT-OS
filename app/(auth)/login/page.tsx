@@ -1,47 +1,111 @@
-import { signInWithClinicPassword } from "@/lib/actions/auth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { PasswordVisibilityInput } from "@/components/auth/password-visibility-input";
-import { getCurrentUserProfile } from "@/lib/auth/session";
-import { redirect } from "next/navigation";
+'use client'
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; next?: string }> }) {
-  const params = await searchParams;
-  const user = await getCurrentUserProfile();
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
-  if (user) {
-    const next = params.next?.startsWith("/") && !params.next.startsWith("//") ? params.next : "/dashboard";
-    redirect(next);
+export default function LoginPage() {
+  const router = useRouter()
+
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.message || 'Login failed')
+        setLoading(false)
+        return
+      }
+
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      setError('Something went wrong')
+      setLoading(false)
+    }
   }
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-md bg-primary font-bold text-primary-foreground">O</div>
-            <div>
-              <h1 className="text-lg font-semibold">Sign in to OrbitOS</h1>
-              <p className="text-sm text-muted-foreground">Use your organisation account</p>
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white p-8 rounded-xl shadow-md w-full max-w-md"
+      >
+        <h1 className="text-2xl font-bold mb-6 text-center">
+          Sign in to OrbitOS
+        </h1>
+
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium">
+            Username
+          </label>
+
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full border rounded-lg px-4 py-2"
+            required
+          />
+        </div>
+
+        <div className="mb-4">
+          <label className="block mb-2 text-sm font-medium">
+            Password
+          </label>
+
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border rounded-lg px-4 py-2"
+            required
+          />
+        </div>
+
+        {error && (
+          <div className="mb-4 text-red-500 text-sm">
+            {error}
           </div>
-        </CardHeader>
-        <CardContent>
-          <form action={signInWithClinicPassword} className="grid gap-4">
-            <input type="hidden" name="next" value={params.next ?? "/dashboard"} />
-            <Field label="Username">
-              <Input name="username" autoComplete="username" required />
-            </Field>
-            <Field label="Password">
-              <PasswordVisibilityInput />
-            </Field>
-            {params.error ? <p className="rounded-md border border-error/30 bg-error/10 px-3 py-2 text-sm text-error">{params.error}</p> : null}
-            <Button type="submit">Sign in</Button>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
-  );
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-teal-600 text-white py-2 rounded-lg"
+        >
+          {loading ? 'Signing in...' : 'Sign in'}
+        </button>
+
+        <div className="mt-4 text-center text-sm">
+          <a
+            href="/signup"
+            className="text-teal-600 underline"
+          >
+            Create account
+          </a>
+        </div>
+      </form>
+    </div>
+  )
 }
