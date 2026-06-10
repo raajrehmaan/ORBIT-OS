@@ -1,48 +1,36 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { clinicSessionCookieName, verifyClinicSessionValue } from "@/lib/auth/session-token";
-import { errorDetails, logRuntimeDiagnostic } from "@/lib/diagnostics/runtime";
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
-  let session = null;
-  try {
-    session = await verifyClinicSessionValue(request.cookies.get(clinicSessionCookieName)?.value ?? "");
-  } catch (error) {
-    logRuntimeDiagnostic("middleware_session_check_failed", { path: request.nextUrl.pathname, error: errorDetails(error) });
-  }
-  const isAuthenticated = Boolean(session);
-  const isAuthRoute = request.nextUrl.pathname.startsWith("/auth");
-  const isLoginRoute = request.nextUrl.pathname === "/login";
-  const protectedPath = !isLoginRoute && !isAuthRoute;
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
 
-  if (isLoginRoute && isAuthenticated) {
-    const nextPath = request.nextUrl.searchParams.get("next");
-    return NextResponse.redirect(safeRedirectUrl(nextPath, request.url));
-  }
+  const publicRoutes = [
+    '/login',
+    '/signup',
+    '/api/auth/signup'
+  ]
 
-  if (protectedPath && !isAuthenticated) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(redirectUrl);
-  }
+  const isPublicRoute = publicRoutes.some(
+    (route) => pathname.startsWith(route)
+  )
 
-  if (request.nextUrl.pathname === "/" && isAuthenticated) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    return NextResponse.redirect(redirectUrl);
+  const session =
+    req.cookies.get('sb-access-token') ||
+    req.cookies.get(
+      'supabase-auth-token'
+    )
+
+  if (!isPublicRoute && !session) {
+    return NextResponse.redirect(
+      new URL('/login', req.url)
+    )
   }
 
-  return NextResponse.next();
-}
-
-function safeRedirectUrl(nextPath: string | null, requestUrl: string) {
-  if (!nextPath?.startsWith("/") || nextPath.startsWith("//")) {
-    return new URL("/dashboard", requestUrl);
-  }
-
-  return new URL(nextPath, requestUrl);
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
-};
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*)'
+  ]
+}
