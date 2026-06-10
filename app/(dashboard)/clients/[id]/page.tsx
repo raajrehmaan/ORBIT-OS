@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { ClientPhotoHistory } from "@/components/clients/client-photo-history";
-import { FutureSessionActions } from "@/components/clients/future-session-actions";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { requireUserProfile } from "@/lib/auth/session";
 import { getClientMasterFile } from "@/lib/db/queries";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { currencyFromPrice, humanize, safeArray, safeDate } from "@/lib/utils";
+import {
+  currencyFromPrice,
+  safeArray,
+  safeDate
+} from "@/lib/utils";
 
 export default async function ClientProfilePage({
   params
@@ -30,43 +33,31 @@ export default async function ClientProfilePage({
     id
   );
 
-  const historicalRecords = await getClientHistory(id);
+  const historicalRecords =
+    (await getClientHistory(id)) as any[];
 
   const appointments = safeArray(data.appointments);
   const payments = safeArray(data.payments);
-  const treatments = safeArray(data.treatments);
-  const appointmentHistory = safeArray(
-    data.appointmentHistory
-  );
-
-  const historyByAppointment = new Map(
-    appointmentHistory
-      .filter((history) => history.appointment_id)
-      .map((history) => [
-        history.appointment_id,
-        history
-      ])
-  );
 
   const completed = appointments.filter(
-    (appointment) =>
+    (appointment: any) =>
       appointmentStatus(appointment) === "completed"
   ).length;
 
   const cancelled = appointments.filter(
-    (appointment) =>
+    (appointment: any) =>
       ["cancelled", "archived"].includes(
         appointmentStatus(appointment)
       )
   ).length;
 
   const noShows = appointments.filter(
-    (appointment) =>
+    (appointment: any) =>
       appointmentStatus(appointment) === "no_show"
   ).length;
 
   const upcoming = appointments.filter(
-    (appointment) => {
+    (appointment: any) => {
       const startsAt = safeDate(
         appointment.starts_at
       );
@@ -86,31 +77,10 @@ export default async function ClientProfilePage({
     }
   ).length;
 
-  const futureSessions = appointments.filter(
-    (appointment) => {
-      const startsAt = safeDate(
-        appointment.starts_at
-      );
-
-      return (
-        startsAt &&
-        startsAt >= new Date() &&
-        ![
-          "cancelled",
-          "archived",
-          "no_show",
-          "completed"
-        ].includes(
-          appointmentStatus(appointment)
-        )
-      );
-    }
-  );
-
   const activeAppointmentIds = new Set(
     appointments
       .filter(
-        (appointment) =>
+        (appointment: any) =>
           ![
             "cancelled",
             "archived",
@@ -119,31 +89,31 @@ export default async function ClientProfilePage({
             appointmentStatus(appointment)
           )
       )
-      .map((appointment) => appointment.id)
+      .map((appointment: any) => appointment.id)
   );
 
   const totalSpent = payments
     .filter(
-      (payment) =>
+      (payment: any) =>
         !payment.appointment_id ||
         activeAppointmentIds.has(
           payment.appointment_id
         )
     )
     .reduce(
-      (sum, payment) =>
+      (sum: number, payment: any) =>
         sum + Number(payment.amount_paid ?? 0),
       0
     );
 
   const totalDue = payments.reduce(
-    (sum, payment) =>
+    (sum: number, payment: any) =>
       sum + Number(payment.balance_due ?? 0),
     0
   );
 
   const deposits = payments.reduce(
-    (sum, payment) =>
+    (sum: number, payment: any) =>
       sum +
       Number(payment.deposit_amount ?? 0),
     0
@@ -151,11 +121,11 @@ export default async function ClientProfilePage({
 
   const refunds = payments
     .filter(
-      (payment) =>
+      (payment: any) =>
         payment.payment_status === "refunded"
     )
     .reduce(
-      (sum, payment) =>
+      (sum: number, payment: any) =>
         sum + Number(payment.amount_paid ?? 0),
       0
     );
@@ -270,65 +240,68 @@ export default async function ClientProfilePage({
               No historical records found.
             </p>
           ) : (
-            historicalRecords.map((record) => (
-              <div
-                key={record.id}
-                className="rounded-lg border border-blue-500/30 bg-blue-50/30 p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">
-                      {record.treatment_name}
+            historicalRecords.map(
+              (record: any, index: number) => (
+                <div
+                  key={record?.id || index}
+                  className="rounded-lg border border-blue-500/30 bg-blue-50/30 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">
+                        {record?.treatment_name ||
+                          "Unknown Treatment"}
+                      </p>
+
+                      <p className="text-sm text-muted-foreground">
+                        {record?.treatment_category ??
+                          "Historical Treatment"}
+                      </p>
+                    </div>
+
+                    <span className="rounded-md border border-blue-500/30 px-2 py-1 text-xs font-semibold">
+                      HISTORICAL
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                    <p>
+                      Date:{" "}
+                      {formatHistoryDate(
+                        record?.session_date
+                      )}
                     </p>
 
-                    <p className="text-sm text-muted-foreground">
-                      {record.treatment_category ??
-                        "Historical Treatment"}
+                    <p>
+                      Time:{" "}
+                      {record?.session_time ??
+                        "--:--"}
+                    </p>
+
+                    <p>
+                      Practitioner:{" "}
+                      {record?.practitioner_name ??
+                        "Unknown"}
+                    </p>
+
+                    <p>
+                      Paid:{" "}
+                      {currencyFromPrice(
+                        Number(
+                          record?.amount_paid ?? 0
+                        )
+                      )}
                     </p>
                   </div>
 
-                  <span className="rounded-md border border-blue-500/30 px-2 py-1 text-xs font-semibold">
-                    HISTORICAL
-                  </span>
+                  {record?.notes ? (
+                    <p className="mt-3 text-sm">
+                      {record.notes}
+                    </p>
+                  ) : null}
                 </div>
-
-                <div className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
-                  <p>
-                    Date:{" "}
-                    {formatHistoryDate(
-                      record.session_date
-                    )}
-                  </p>
-
-                  <p>
-                    Time:{" "}
-                    {record.session_time ??
-                      "--:--"}
-                  </p>
-
-                  <p>
-                    Practitioner:{" "}
-                    {record.practitioner_name ??
-                      "Unknown"}
-                  </p>
-
-                  <p>
-                    Paid:{" "}
-                    {currencyFromPrice(
-                      Number(
-                        record.amount_paid ?? 0
-                      )
-                    )}
-                  </p>
-                </div>
-
-                {record.notes ? (
-                  <p className="mt-3 text-sm">
-                    {record.notes}
-                  </p>
-                ) : null}
-              </div>
-            ))
+              )
+            )
           )}
         </CardContent>
       </Card>
@@ -361,7 +334,7 @@ async function getClientPhotos(
     });
 
   return Promise.all(
-    safeArray(data).map(async (photo) => {
+    safeArray(data).map(async (photo: any) => {
       const signed = await supabase.storage
         .from("organisation-assets")
         .createSignedUrl(
